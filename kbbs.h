@@ -8,16 +8,24 @@
 class KBBS :public KMatchCore
 {
 public:
-    KBBS(int = 3);
+    KBBS(int = 3, float = 2.f);
     virtual ~KBBS(){}
     void calc_spatial_distance();
     void show_keypoint();
     void do_prepare(cv::Mat inputImg, cv::Mat inputTem){
         int temp_size = (inputTem.rows / m_iPatchSize)*(inputTem.cols / m_iPatchSize);
         m_vecResBuff.clear();
-        m_vecResBuff.resize((inputImg.cols -inputTem.cols) / m_iPatchSize + 1, cv::Mat(temp_size, temp_size, CV_MAKETYPE(CV_32F, 1)));
+        for(int index = 0;index < (inputImg.cols -inputTem.cols) / m_iPatchSize + 1;++index){
+            m_vecResBuff.push_back(cv::Mat(temp_size, temp_size, CV_MAKETYPE(CV_32F, 1)));
+        }
+        // never use this
+        //m_vecResBuff.resize((inputImg.cols -inputTem.cols) / m_iPatchSize + 1, cv::Mat(temp_size, temp_size, CV_MAKETYPE(CV_32F, 1)));
         m_vecPlanes.clear();
-        m_vecPlanes.resize(inputTem.channels(), cv::Mat(m_iPatchSize, m_iPatchSize, CV_MAKETYPE(CV_32F, 1)));
+        for(int index = 0;index < inputTem.channels();++index){
+            m_vecPlanes.push_back(cv::Mat(m_iPatchSize, m_iPatchSize, CV_MAKETYPE(CV_32F, 1)));
+        }
+        // never use this
+        //m_vecPlanes.resize(inputTem.channels(), cv::Mat(m_iPatchSize, m_iPatchSize, CV_MAKETYPE(CV_32F, 1)));
         m_matSpatialDis.create(temp_size, temp_size, CV_MAKETYPE(CV_32F, 1));
         m_iYStep = inputTem.cols / m_iPatchSize;
         m_iXStep = inputTem.rows / m_iPatchSize;
@@ -50,6 +58,7 @@ public:
     int get_cur_patchsize(){ return m_iPatchSize; }
 private:
     int m_iPatchSize;
+    float m_fGamma;
     int m_iXStep;
     int m_iYStep;
     std::vector<cv::Mat> m_vecResBuff;

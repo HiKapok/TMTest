@@ -76,6 +76,8 @@ bool KMatchCore::run_match()
     m_imgSimilarMap.create((m_imgSource.rows - m_imgTemplate.rows)/ _patch_size + 1, (m_imgSource.cols - m_imgTemplate.cols) / _patch_size + 1, CV_32FC1);
     m_imgSimilarMap = cv::Scalar::all(0.);
 
+    m_tBegin = std::time(nullptr);
+
     for(int iHeight = 0; iHeight <= m_imgSource.rows - m_imgTemplate.rows; iHeight+=_patch_size){
         float * similarMap = m_imgSimilarMap.ptr<float>(iHeight/_patch_size);
         for(int iWidth = 0; iWidth <= m_imgSource.cols - m_imgTemplate.cols; iWidth+=_patch_size){
@@ -121,7 +123,7 @@ int KMatchCore::creat_dummy_color(int _step, bool _b_start_blue)
     return m_veColorMap.size();
 }
 
-void KMatchCore::show_similar_map()
+void KMatchCore::show_similar_map(cv::String filename)
 { 
     if (!m_imgSource.data || !m_imgTemplate.data) return;
     cv::Mat image_toshow(m_imgSimilarMap.rows, m_imgSimilarMap.cols, CV_8UC3);
@@ -145,6 +147,7 @@ void KMatchCore::show_similar_map()
     //cv::normalize(m_imgSimilarMap, image_toshow, 0., 255., cv::NORM_L2, CV_8U);
     cv::namedWindow("similarmap");
     cv::imshow("similarmap", image_toshow);
+    cv::imwrite(filename, image_toshow);
     cv::waitKey(0);
 }
 
@@ -153,12 +156,30 @@ void KMatchCore::save_match_image(cv::String filename)
     if (!m_imgSource.data || !m_imgTemplate.data) return;
     int _patch_size = 1;
     int _pen_width = std::min(m_imgTemplate.cols, m_imgTemplate.rows) / 20;
-    if(_pen_width < 2) _pen_width = 2;
-    if(_pen_width > 10) _pen_width = 10;
+    if (_pen_width < 2) _pen_width = 2;
+    if (_pen_width > 10) _pen_width = 10;
     cv::Point max_loc(0, 0);
-    if((_patch_size = get_cur_patchsize()) < 1) return;
-    cv::minMaxLoc(m_imgSimilarMap, nullptr, nullptr, nullptr, &max_loc);
-    cv::rectangle(m_imgSource, cv::Rect(max_loc.x * _patch_size, max_loc.y * _patch_size, m_imgTemplate.cols, m_imgTemplate.rows), cv::Scalar(0), _pen_width);
+    double max_value;
+    std::vector<cv::Point> vec_max_loc;
+    int average_x = 0;
+    int average_y = 0;
+    if ((_patch_size = get_cur_patchsize()) < 1) return;
+    cv::minMaxLoc(m_imgSimilarMap, nullptr, &max_value, nullptr, &max_loc);
+    for (int iY = 0; iY < m_imgSimilarMap.rows; ++iY){
+        float *_data = m_imgSimilarMap.ptr<float>(iY);
+        for (int iX = 0; iX < m_imgSimilarMap.cols; ++iX){
+            if (std::fabs(max_value - _data[iX]) < DBL_EPSILON)
+            {
+                vec_max_loc.push_back(cv::Point(iX, iY));
+                average_x += iX;
+                average_y += iY;
+            }
+        }
+    }
+    average_x /= vec_max_loc.size();
+    average_y /= vec_max_loc.size();
+    cv::rectangle(m_imgSource, cv::Rect(average_x * _patch_size, average_y * _patch_size, m_imgTemplate.cols, m_imgTemplate.rows), cv::Scalar(0), _pen_width);
+    //cv::rectangle(m_imgSource, cv::Rect(max_loc.x * _patch_size, max_loc.y * _patch_size, m_imgTemplate.cols, m_imgTemplate.rows), cv::Scalar(0), _pen_width);
     cv::imwrite(filename, m_imgSource);
 }
 

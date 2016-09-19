@@ -2,7 +2,7 @@
 #include <tuple>
 #include <iostream>
 
-KBBS::KBBS(int _patch_size) :m_iPatchSize(_patch_size + (_patch_size % 2 == 0 ? 1 : 0) ), m_iXStep(0), m_iYStep(0)
+KBBS::KBBS(int _patch_size, float _gamma) :m_iPatchSize(_patch_size + (_patch_size % 2 == 0 ? 1 : 0) ), m_fGamma(_gamma), m_iXStep(0), m_iYStep(0)
 {
 
 }
@@ -16,8 +16,8 @@ void KBBS::calc_spatial_distance()
     for (int iHeight = 0; iHeight < m_matSpatialDis.rows; ++iHeight){
         float * distance = m_matSpatialDis.ptr<float>(iHeight);
         for (int iWidth = 0; iWidth < m_matSpatialDis.cols; ++iWidth){
-            distance[iWidth] = std::pow(((iHeight % m_iYStep) - (iWidth % m_iYStep)) * m_iPatchSize, 2.)
-                + std::pow(((iHeight / m_iYStep) - (iWidth / m_iYStep)) * m_iPatchSize, 2.);
+            distance[iWidth] = (std::pow(((iHeight % m_iYStep) - (iWidth % m_iYStep)) * m_iPatchSize, 2.)
+                + std::pow(((iHeight / m_iYStep) - (iWidth / m_iYStep)) * m_iPatchSize, 2.))*m_fGamma;
         }
     }
 }
@@ -41,15 +41,15 @@ float KBBS::do_single_match(cv::Mat _imgsrc, cv::Mat _imgtmp, int row, int col)
             }
         }
     }else if(0 == row && col > 0){
+        (m_vecResBuff[col - 1].rowRange(1, (_imgtmp.rows / m_iPatchSize)*(_imgtmp.cols / m_iPatchSize))).copyTo(m_vecResBuff[col].rowRange(0, (_imgtmp.rows / m_iPatchSize)*(_imgtmp.cols / m_iPatchSize) - 1));
         for(int iY = 0; iY < m_iXStep; ++iY){
-            (m_vecResBuff[col - 1].rowRange(1, (_imgtmp.rows / m_iPatchSize)*(_imgtmp.cols / m_iPatchSize))).copyTo(m_vecResBuff[col].rowRange(0, (_imgtmp.rows / m_iPatchSize)*(_imgtmp.cols / m_iPatchSize) - 1));
             float * distance = m_vecResBuff[col].ptr<float>(iY * m_iYStep + m_iYStep - 1);
             cv::Mat thisPatch = _imgsrc(cv::Rect((m_iYStep - 1) * m_iPatchSize, iY * m_iPatchSize, m_iPatchSize, m_iPatchSize));
             calc_color_distance(thisPatch, _imgtmp, distance);
         }
     }else if(row > 0 && 0 == col){
+        (m_vecResBuff[0].rowRange(m_iYStep, (_imgtmp.rows / m_iPatchSize)*(_imgtmp.cols / m_iPatchSize))).copyTo(m_vecResBuff[0].rowRange(0, (_imgtmp.rows / m_iPatchSize)*(_imgtmp.cols / m_iPatchSize) - m_iYStep));
         for(int iX = 0;iX < m_iYStep; ++iX){
-            (m_vecResBuff[0].rowRange(m_iYStep, (_imgtmp.rows / m_iPatchSize)*(_imgtmp.cols / m_iPatchSize))).copyTo(m_vecResBuff[0].rowRange(0, (_imgtmp.rows / m_iPatchSize)*(_imgtmp.cols / m_iPatchSize) - m_iYStep));
             float * distance = m_vecResBuff[0].ptr<float>((m_iXStep-1) * m_iYStep + iX);
             cv::Mat thisPatch = _imgsrc(cv::Rect(iX * m_iPatchSize, (m_iXStep-1) * m_iPatchSize, m_iPatchSize, m_iPatchSize));
             calc_color_distance(thisPatch, _imgtmp, distance);
@@ -66,7 +66,7 @@ float KBBS::do_single_match(cv::Mat _imgsrc, cv::Mat _imgtmp, int row, int col)
     if(nullptr == col_min_index) return 0.f;
 
     memset(col_min_index, -1, (_imgtmp.rows / m_iPatchSize)*(_imgtmp.cols / m_iPatchSize)*sizeof(int));
-    cv::Mat join_distance = m_matSpatialDis * 2 + m_vecResBuff[col];
+    cv::Mat join_distance = m_matSpatialDis + m_vecResBuff[col];
     cv::Point min_loc(0, 0);
     for(int index = 0;index < (_imgtmp.rows / m_iPatchSize)*(_imgtmp.cols / m_iPatchSize);++index){
         cv::minMaxLoc(join_distance.rowRange(index, index + 1), nullptr, nullptr, &min_loc, nullptr);
